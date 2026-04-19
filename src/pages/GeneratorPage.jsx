@@ -22,6 +22,25 @@ function getNonEmptyPages(doc) {
   );
 }
 
+function isDiagramLikeSection(section) {
+  const title = String(section?.title || "").toLowerCase();
+  const content = String(section?.content || "").toLowerCase().trim();
+  if (title.includes("diagram") || title.includes("mermaid") || title.includes("graphviz")) {
+    return true;
+  }
+  if (content.startsWith("flowchart ") || content.startsWith("sequencediagram")) {
+    return true;
+  }
+  if (content.startsWith("graph ") || content.startsWith("digraph ")) {
+    return true;
+  }
+  return content.includes("classdef ") || content.includes("linkstyle ");
+}
+
+function getNarrativeSections(doc) {
+  return (doc?.sections || []).filter((section) => !isDiagramLikeSection(section));
+}
+
 function TitleBlock() {
   return (
     <div className="flex items-start justify-between gap-6">
@@ -55,7 +74,7 @@ export default function GeneratorPage() {
   const [pageCount, setPageCount] = useState(5);
   const [preview, setPreview] = useState(null);
   const [doc, setDoc] = useState(null);
-  const [diagramSvg, setDiagramSvg] = useState("");
+  const [mermaidSvgMap, setMermaidSvgMap] = useState({});
   const [loading, setLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [error, setError] = useState("");
@@ -75,12 +94,20 @@ export default function GeneratorPage() {
 
   const exportRef = useRef(null);
   const visiblePages = getNonEmptyPages(doc);
+  const visibleSections = getNarrativeSections(doc);
 
   const canGenerate = useMemo(() => text.trim().length > 0 && !loading, [text, loading]);
   const canPreview = useMemo(
     () => text.trim().length > 0 && !previewLoading,
     [text, previewLoading],
   );
+
+  function handleMermaidSvg(index, svg) {
+    setMermaidSvgMap((current) => ({
+      ...current,
+      [index]: svg,
+    }));
+  }
 
   async function onPreviewPages() {
     setPreviewLoading(true);
@@ -103,7 +130,7 @@ export default function GeneratorPage() {
     setLoading(true);
     setError("");
     setDoc(null);
-    setDiagramSvg("");
+    setMermaidSvgMap({});
     setGraphvizSvgMap({});
     try {
       const data = await generateDocs(text, pageCount);
@@ -215,7 +242,7 @@ export default function GeneratorPage() {
                     setError("");
                     setPreview(null);
                     setDoc(null);
-                    setDiagramSvg("");
+                    setMermaidSvgMap({});
                     setGraphvizSvgMap({});
                     setPageCount(5);
                   }}
@@ -275,8 +302,7 @@ export default function GeneratorPage() {
               <div className="text-sm font-semibold">Output</div>
               <ExportBar
                 doc={doc}
-                diagramSvg={diagramSvg}
-                exportTargetRef={exportRef}
+                mermaidSvgMap={mermaidSvgMap}
                 graphvizSvgMap={graphvizSvgMap}
               />
             </div>
@@ -300,14 +326,14 @@ export default function GeneratorPage() {
                   <div className="border-t border-slate-700/40" />
                   <DiagramGallery
                     diagrams={doc.diagrams}
-                    primaryDiagramSvg={setDiagramSvg}
+                    onMermaidSvg={handleMermaidSvg}
                     graphvizSvgMap={graphvizSvgMap}
                   />
                   <div className="border-t border-slate-700/40" />
                   <DocSection label="Technical Breakdown" value={doc.technical} />
                   <div className="border-t border-slate-700/40" />
                   <DocSection label="Use Cases" value={doc.use_cases} />
-                  {!!doc.sections?.length && (
+                  {!!visibleSections.length && (
                     <>
                       <div className="border-t border-slate-700/40" />
                       <section className="p-5">
@@ -315,7 +341,7 @@ export default function GeneratorPage() {
                           Detailed Sections
                         </div>
                         <div className="mt-4 space-y-4">
-                          {doc.sections.map((section, index) => (
+                          {visibleSections.map((section, index) => (
                             <div
                               key={`${section.title}-${index}`}
                               className="rounded-2xl border border-slate-700/40 bg-slate-950/20 p-4"

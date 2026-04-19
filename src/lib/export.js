@@ -20,7 +20,7 @@ function getNonEmptyPages(doc) {
   );
 }
 
-function buildExportDocument(doc, diagramSvg, graphvizSvgMap) {
+function buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -59,7 +59,7 @@ function buildExportDocument(doc, diagramSvg, graphvizSvgMap) {
       <h2>Workflow</h2>
       <div class="p">${esc(doc?.workflow)}</div>
     </div>
-    ${renderDiagrams(doc, diagramSvg, graphvizSvgMap)}
+    ${renderDiagrams(doc, mermaidSvgMap, graphvizSvgMap)}
     ${renderSections(doc)}
     ${renderPages(doc)}
   </div>
@@ -67,8 +67,8 @@ function buildExportDocument(doc, diagramSvg, graphvizSvgMap) {
 </html>`;
 }
 
-function buildPdfContainer(doc, diagramSvg, graphvizSvgMap) {
-  const markup = buildExportDocument(doc, diagramSvg, graphvizSvgMap);
+function buildPdfContainer(doc, mermaidSvgMap, graphvizSvgMap) {
+  const markup = buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap);
   const parser = new DOMParser();
   const parsed = parser.parseFromString(markup, "text/html");
   const container = document.createElement("div");
@@ -88,7 +88,7 @@ function buildPdfContainer(doc, diagramSvg, graphvizSvgMap) {
   return container;
 }
 
-export async function exportPdf({ doc, title, diagramSvg, graphvizSvgMap }) {
+export async function exportPdf({ doc, title, mermaidSvgMap, graphvizSvgMap }) {
   const filename = `${safeFilename(title)}.pdf`;
   const opt = {
     margin: [12, 12, 12, 12],
@@ -98,7 +98,7 @@ export async function exportPdf({ doc, title, diagramSvg, graphvizSvgMap }) {
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
     pagebreak: { mode: ["css", "legacy", "avoid-all"] },
   };
-  const container = buildPdfContainer(doc, diagramSvg, graphvizSvgMap);
+  const container = buildPdfContainer(doc, mermaidSvgMap, graphvizSvgMap);
   document.body.appendChild(container);
   try {
     await html2pdf().set(opt).from(container).save();
@@ -139,10 +139,12 @@ function renderPages(doc) {
     .join("");
 }
 
-function renderDiagrams(doc, diagramSvg, graphvizSvgMap) {
+function renderDiagrams(doc, mermaidSvgMap, graphvizSvgMap) {
   return (doc?.diagrams || [])
     .map((item, index) => {
-      const svg = item.type === "graphviz" ? graphvizSvgMap?.[index] || "" : index === 0 ? diagramSvg || "" : "";
+      const svg = item.type === "graphviz"
+        ? graphvizSvgMap?.[index] || ""
+        : mermaidSvgMap?.[index] || "";
       const fallbackCode = item.type === "mermaid" ? normalizeMermaidCode(item.code) : item.code;
       return `
     <div class="card page-block">
@@ -161,9 +163,9 @@ function esc(s) {
     .replaceAll(">", "&gt;");
 }
 
-export function exportHtml({ doc, diagramSvg, graphvizSvgMap }) {
+export function exportHtml({ doc, mermaidSvgMap, graphvizSvgMap }) {
   const filename = `${safeFilename(doc?.title)}.html`;
-  const html = buildExportDocument(doc, diagramSvg, graphvizSvgMap);
+  const html = buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap);
 
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);

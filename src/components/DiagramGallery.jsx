@@ -17,7 +17,7 @@ function GraphvizPreview({ svg }) {
   );
 }
 
-export default function DiagramGallery({ diagrams, primaryDiagramSvg, graphvizSvgMap }) {
+export default function DiagramGallery({ diagrams, onMermaidSvg, graphvizSvgMap }) {
   if (!diagrams?.length) {
     return null;
   }
@@ -48,7 +48,7 @@ export default function DiagramGallery({ diagrams, primaryDiagramSvg, graphvizSv
               ) : (
                 <MermaidDiagram
                   code={diagram.code}
-                  onSvg={index === 0 ? primaryDiagramSvg : undefined}
+                  onSvg={(svg) => onMermaidSvg?.(index, svg)}
                 />
               )}
             </div>
@@ -58,4 +58,3 @@ export default function DiagramGallery({ diagrams, primaryDiagramSvg, graphvizSv
     </section>
   );
 }
-
