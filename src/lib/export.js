@@ -8,6 +8,18 @@ function safeFilename(name) {
     .slice(0, 64) || "documentation";
 }
 
+function normalizeMermaidCode(code) {
+  return String(code || "")
+    .replace(/^%%\{init:.*?%%\s*/s, "")
+    .trim();
+}
+
+function getNonEmptyPages(doc) {
+  return (doc?.pages || []).filter((page) =>
+    (page.sections || []).some((section) => String(section?.content || "").trim()),
+  );
+}
+
 function buildExportDocument(doc, diagramSvg, graphvizSvgMap) {
   return `<!doctype html>
 <html lang="en">
@@ -108,7 +120,7 @@ function renderSections(doc) {
 }
 
 function renderPages(doc) {
-  return (doc?.pages || [])
+  return getNonEmptyPages(doc)
     .map(
       (page) => `
     <section class="doc-page">
@@ -131,11 +143,12 @@ function renderDiagrams(doc, diagramSvg, graphvizSvgMap) {
   return (doc?.diagrams || [])
     .map((item, index) => {
       const svg = item.type === "graphviz" ? graphvizSvgMap?.[index] || "" : index === 0 ? diagramSvg || "" : "";
+      const fallbackCode = item.type === "mermaid" ? normalizeMermaidCode(item.code) : item.code;
       return `
     <div class="card page-block">
       <h2>${esc(item.title)} (${esc(item.type)})</h2>
       <div class="p">${esc(item.summary)}</div>
-      <div class="svg">${svg || `<pre>${esc(item.code)}</pre>`}</div>
+      <div class="svg">${svg || `<pre>${esc(fallbackCode)}</pre>`}</div>
     </div>`;
     })
     .join("");

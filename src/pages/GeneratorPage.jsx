@@ -16,6 +16,12 @@ Build an AI documentation generator.
 - Export to PDF/HTML
 `;
 
+function getNonEmptyPages(doc) {
+  return (doc?.pages || []).filter((page) =>
+    (page.sections || []).some((section) => String(section?.content || "").trim()),
+  );
+}
+
 function TitleBlock() {
   return (
     <div className="flex items-start justify-between gap-6">
@@ -66,6 +72,7 @@ export default function GeneratorPage() {
   const [graphvizErr, setGraphvizErr] = useState("");
 
   const exportRef = useRef(null);
+  const visiblePages = getNonEmptyPages(doc);
 
   const canGenerate = useMemo(() => text.trim().length > 0 && !loading, [text, loading]);
 
@@ -256,7 +263,7 @@ export default function GeneratorPage() {
                       </section>
                     </>
                   )}
-                  {!!doc.pages?.length && (
+                  {!!visiblePages.length && (
                     <>
                       <div className="border-t border-slate-700/40" />
                       <section className="p-5">
@@ -267,7 +274,7 @@ export default function GeneratorPage() {
                           Requested page count: {pageCount}
                         </div>
                         <div className="mt-4 space-y-5">
-                          {doc.pages.map((page, index) => (
+                          {visiblePages.map((page, index) => (
                             <div
                               key={`${page.title}-${index}`}
                               className="rounded-2xl border border-sky-400/20 bg-slate-900/30 p-4"

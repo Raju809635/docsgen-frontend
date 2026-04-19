@@ -4,6 +4,12 @@ import DOMPurify from "dompurify";
 
 let mermaidConfigured = false;
 
+function normalizeMermaidCode(code) {
+  return (code || "")
+    .replace(/^%%\{init:.*?%%\s*/s, "")
+    .trim();
+}
+
 function ensureMermaidConfig() {
   if (mermaidConfigured) return;
   mermaid.initialize({
@@ -32,7 +38,7 @@ export default function MermaidDiagram({ code, onSvg }) {
   useEffect(() => {
     ensureMermaidConfig();
 
-    const c = (code || "").trim();
+    const c = normalizeMermaidCode(code);
     if (!c) {
       setSvg("");
       onSvg?.("");
@@ -71,4 +77,3 @@ export default function MermaidDiagram({ code, onSvg }) {
     </div>
   );
 }
-
