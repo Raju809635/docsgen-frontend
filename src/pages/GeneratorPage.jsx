@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import Card from "../components/Card.jsx";
 import Button from "../components/Button.jsx";
 import DocSection from "../components/DocSection.jsx";
-import MermaidDiagram from "../components/MermaidDiagram.jsx";
+import DiagramGallery from "../components/DiagramGallery.jsx";
 import ExportBar from "../components/ExportBar.jsx";
 import { generateDocs, renderGraphviz } from "../lib/api.js";
 import DOMPurify from "dompurify";
@@ -61,6 +61,7 @@ export default function GeneratorPage() {
 }`,
   );
   const [graphvizSvg, setGraphvizSvg] = useState("");
+  const [graphvizSvgMap, setGraphvizSvgMap] = useState({});
   const [graphvizErr, setGraphvizErr] = useState("");
 
   const exportRef = useRef(null);
@@ -72,9 +73,28 @@ export default function GeneratorPage() {
     setError("");
     setDoc(null);
     setDiagramSvg("");
+    setGraphvizSvgMap({});
     try {
       const data = await generateDocs(text);
       setDoc(data);
+      const graphvizEntries = (data?.diagrams || [])
+        .map((diagram, index) => ({ diagram, index }))
+        .filter(({ diagram }) => diagram.type === "graphviz" && diagram.code);
+
+      if (graphvizEntries.length > 0) {
+        const renderedPairs = await Promise.all(
+          graphvizEntries.map(async ({ diagram, index }) => {
+            try {
+              const res = await renderGraphviz(diagram.code);
+              const clean = DOMPurify.sanitize(res?.svg || "", { USE_PROFILES: { svg: true } });
+              return [index, clean];
+            } catch {
+              return [index, ""];
+            }
+          }),
+        );
+        setGraphvizSvgMap(Object.fromEntries(renderedPairs));
+      }
     } catch (e) {
       setError(
         e?.response?.data?.detail ||
@@ -133,6 +153,7 @@ export default function GeneratorPage() {
                     setError("");
                     setDoc(null);
                     setDiagramSvg("");
+                    setGraphvizSvgMap({});
                   }}
                   disabled={loading}
                 >
@@ -150,7 +171,12 @@ export default function GeneratorPage() {
           <Card className="overflow-hidden">
             <div className="border-b border-slate-700/40 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
               <div className="text-sm font-semibold">Output</div>
-              <ExportBar doc={doc} diagramSvg={diagramSvg} exportTargetRef={exportRef} />
+              <ExportBar
+                doc={doc}
+                diagramSvg={diagramSvg}
+                exportTargetRef={exportRef}
+                graphvizSvgMap={graphvizSvgMap}
+              />
             </div>
 
             <div
@@ -170,18 +196,77 @@ export default function GeneratorPage() {
                   <div className="border-t border-slate-700/40" />
                   <DocSection label="Workflow" value={doc.workflow} />
                   <div className="border-t border-slate-700/40" />
-                  <section className="p-5">
-                    <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
-                      Diagram (Mermaid)
-                    </div>
-                    <div className="mt-3">
-                      <MermaidDiagram code={doc.diagram} onSvg={setDiagramSvg} />
-                    </div>
-                  </section>
+                  <DiagramGallery
+                    diagrams={doc.diagrams}
+                    primaryDiagramSvg={setDiagramSvg}
+                    graphvizSvgMap={graphvizSvgMap}
+                  />
                   <div className="border-t border-slate-700/40" />
                   <DocSection label="Technical Breakdown" value={doc.technical} />
                   <div className="border-t border-slate-700/40" />
                   <DocSection label="Use Cases" value={doc.use_cases} />
+                  {!!doc.sections?.length && (
+                    <>
+                      <div className="border-t border-slate-700/40" />
+                      <section className="p-5">
+                        <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                          Detailed Sections
+                        </div>
+                        <div className="mt-4 space-y-4">
+                          {doc.sections.map((section, index) => (
+                            <div
+                              key={`${section.title}-${index}`}
+                              className="rounded-2xl border border-slate-700/40 bg-slate-950/20 p-4"
+                            >
+                              <div className="text-sm font-semibold text-slate-100">
+                                {section.title}
+                              </div>
+                              <div className="mt-2 whitespace-pre-wrap leading-relaxed text-slate-200">
+                                {section.content}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    </>
+                  )}
+                  {!!doc.pages?.length && (
+                    <>
+                      <div className="border-t border-slate-700/40" />
+                      <section className="p-5">
+                        <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                          Export Pages
+                        </div>
+                        <div className="mt-4 space-y-5">
+                          {doc.pages.map((page, index) => (
+                            <div
+                              key={`${page.title}-${index}`}
+                              className="rounded-2xl border border-sky-400/20 bg-slate-900/30 p-4"
+                            >
+                              <div className="text-sm font-semibold text-sky-200">
+                                {page.title}
+                              </div>
+                              <div className="mt-3 space-y-3">
+                                {page.sections.map((section, sectionIndex) => (
+                                  <div
+                                    key={`${section.title}-${sectionIndex}`}
+                                    className="rounded-xl border border-slate-700/40 bg-slate-950/30 p-3"
+                                  >
+                                    <div className="text-sm font-medium text-slate-100">
+                                      {section.title}
+                                    </div>
+                                    <div className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+                                      {section.content}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -232,4 +317,3 @@ export default function GeneratorPage() {
     </div>
   );
 }
-

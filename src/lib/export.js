@@ -16,19 +16,66 @@ export async function exportPdf({ element, title }) {
     image: { type: "jpeg", quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, backgroundColor: "#020617" },
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    pagebreak: { mode: ["css", "legacy"] },
+    pagebreak: { mode: ["css", "legacy", "avoid-all"] },
   };
   await html2pdf().set(opt).from(element).save();
 }
 
-export function exportHtml({ doc, diagramSvg }) {
-  const filename = `${safeFilename(doc?.title)}.html`;
+function renderSections(doc) {
+  return (doc?.sections || [])
+    .map(
+      (section) => `
+    <div class="card page-block">
+      <h2>${esc(section.title)}</h2>
+      <div class="p">${esc(section.content)}</div>
+    </div>`,
+    )
+    .join("");
+}
 
-  const esc = (s) =>
-    String(s || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;");
+function renderPages(doc) {
+  return (doc?.pages || [])
+    .map(
+      (page) => `
+    <section class="doc-page">
+      <div class="page-title">${esc(page.title)}</div>
+      ${(page.sections || [])
+        .map(
+          (section) => `
+      <div class="card page-block">
+        <h2>${esc(section.title)}</h2>
+        <div class="p">${esc(section.content)}</div>
+      </div>`,
+        )
+        .join("")}
+    </section>`,
+    )
+    .join("");
+}
+
+function renderDiagrams(doc, diagramSvg, graphvizSvgMap) {
+  return (doc?.diagrams || [])
+    .map((item, index) => {
+      const svg = item.type === "graphviz" ? graphvizSvgMap?.[index] || "" : index === 0 ? diagramSvg || "" : "";
+      return `
+    <div class="card page-block">
+      <h2>${esc(item.title)} (${esc(item.type)})</h2>
+      <div class="p">${esc(item.summary)}</div>
+      <div class="svg">${svg || `<pre>${esc(item.code)}</pre>`}</div>
+    </div>`;
+    })
+    .join("");
+}
+
+function esc(s) {
+  return String(s || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+export function exportHtml({ doc, diagramSvg, graphvizSvgMap }) {
+  const filename = `${safeFilename(doc?.title)}.html`;
 
   const html = `<!doctype html>
 <html lang="en">
@@ -45,6 +92,11 @@ export function exportHtml({ doc, diagramSvg }) {
     h2{font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:0 0 10px}
     .p{white-space:pre-wrap;line-height:1.55}
     .svg{background:rgba(15,23,42,.55);border:1px solid rgba(56,189,248,.22);border-radius:14px;padding:12px;overflow:auto}
+    .doc-page{page-break-after:always;padding-bottom:10px}
+    .doc-page:last-child{page-break-after:auto}
+    .page-title{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#7dd3fc;margin:18px 0 4px}
+    .page-block{break-inside:avoid;page-break-inside:avoid}
+    pre{white-space:pre-wrap;overflow:auto}
   </style>
 </head>
 <body>
@@ -57,18 +109,9 @@ export function exportHtml({ doc, diagramSvg }) {
       <h2>Workflow</h2>
       <div class="p">${esc(doc?.workflow)}</div>
     </div>
-    <div class="card">
-      <h2>Diagram</h2>
-      <div class="svg">${diagramSvg || ""}</div>
-    </div>
-    <div class="card">
-      <h2>Technical Breakdown</h2>
-      <div class="p">${esc(doc?.technical)}</div>
-    </div>
-    <div class="card">
-      <h2>Use Cases</h2>
-      <div class="p">${esc(doc?.use_cases)}</div>
-    </div>
+    ${renderDiagrams(doc, diagramSvg, graphvizSvgMap)}
+    ${renderSections(doc)}
+    ${renderPages(doc)}
   </div>
 </body>
 </html>`;
@@ -83,4 +126,3 @@ export function exportHtml({ doc, diagramSvg }) {
   a.remove();
   URL.revokeObjectURL(url);
 }
-
