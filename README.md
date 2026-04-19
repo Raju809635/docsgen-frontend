@@ -14,4 +14,3 @@ npm run dev
 
 - Set env var `VITE_API_URL` to your Render backend URL (for example: `https://docsgen-backend.onrender.com`).
 - Build output: `dist`
-

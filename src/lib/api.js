@@ -1,6 +1,21 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const PROD_API_URL = "https://docsgen-backend.onrender.com";
+
+function resolveApiUrl() {
+  const configuredUrl = import.meta.env.VITE_API_URL;
+  if (configuredUrl) {
+    return configuredUrl;
+  }
+
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+    return PROD_API_URL;
+  }
+
+  return "http://localhost:8000";
+}
+
+const API_URL = resolveApiUrl();
 
 export async function generateDocs(text) {
   const res = await axios.post(`${API_URL}/generate-docs`, { text });
@@ -11,4 +26,3 @@ export async function renderGraphviz(dot) {
   const res = await axios.post(`${API_URL}/render-graphviz`, { dot });
   return res.data;
 }
-
