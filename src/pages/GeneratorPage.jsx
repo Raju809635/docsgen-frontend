@@ -4,7 +4,7 @@ import Button from "../components/Button.jsx";
 import DocSection from "../components/DocSection.jsx";
 import DiagramGallery from "../components/DiagramGallery.jsx";
 import ExportBar from "../components/ExportBar.jsx";
-import { generateDocs, renderGraphviz } from "../lib/api.js";
+import { generateDocs, previewPages, renderGraphviz } from "../lib/api.js";
 import DOMPurify from "dompurify";
 
 const STARTER = `# Example Input
@@ -53,9 +53,11 @@ function TitleBlock() {
 export default function GeneratorPage() {
   const [text, setText] = useState(STARTER);
   const [pageCount, setPageCount] = useState(5);
+  const [preview, setPreview] = useState(null);
   const [doc, setDoc] = useState(null);
   const [diagramSvg, setDiagramSvg] = useState("");
   const [loading, setLoading] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [error, setError] = useState("");
 
   const [dot, setDot] = useState(
@@ -75,6 +77,27 @@ export default function GeneratorPage() {
   const visiblePages = getNonEmptyPages(doc);
 
   const canGenerate = useMemo(() => text.trim().length > 0 && !loading, [text, loading]);
+  const canPreview = useMemo(
+    () => text.trim().length > 0 && !previewLoading,
+    [text, previewLoading],
+  );
+
+  async function onPreviewPages() {
+    setPreviewLoading(true);
+    setError("");
+    try {
+      const data = await previewPages(text, pageCount);
+      setPreview(data);
+    } catch (e) {
+      setError(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Preview request failed. Is the backend running?",
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
 
   async function onGenerate() {
     setLoading(true);
@@ -175,6 +198,13 @@ export default function GeneratorPage() {
                 </div>
               </div>
               <div className="mt-4 flex items-center gap-3">
+                <Button
+                  className="bg-emerald-500/15 border-emerald-400/30 hover:bg-emerald-500/20 hover:border-emerald-300/40 text-emerald-50"
+                  onClick={onPreviewPages}
+                  disabled={!canPreview}
+                >
+                  {previewLoading ? "Planning..." : "Preview Pages"}
+                </Button>
                 <Button onClick={onGenerate} disabled={!canGenerate}>
                   {loading ? "Generating..." : "Generate Docs"}
                 </Button>
@@ -183,6 +213,7 @@ export default function GeneratorPage() {
                   onClick={() => {
                     setText(STARTER);
                     setError("");
+                    setPreview(null);
                     setDoc(null);
                     setDiagramSvg("");
                     setGraphvizSvgMap({});
@@ -196,6 +227,44 @@ export default function GeneratorPage() {
               {error ? (
                 <div className="mt-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
                   {error}
+                </div>
+              ) : null}
+              {preview ? (
+                <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-slate-950/20 p-4">
+                  <div className="text-xs uppercase tracking-[0.22em] text-emerald-300">
+                    Page-wise Preview
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-slate-100">
+                    {preview.title}
+                  </div>
+                  <div className="mt-2 text-sm leading-relaxed text-slate-300">
+                    {preview.summary}
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {preview.pages.map((page) => (
+                      <div
+                        key={page.page_number}
+                        className="rounded-xl border border-slate-700/40 bg-slate-900/30 p-3"
+                      >
+                        <div className="text-sm font-semibold text-sky-200">
+                          Page {page.page_number}: {page.title}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-300">
+                          {page.summary}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {page.sections.map((section, index) => (
+                            <span
+                              key={`${page.page_number}-${index}`}
+                              className="rounded-full border border-slate-700/40 bg-slate-950/40 px-3 py-1 text-xs text-slate-300"
+                            >
+                              {section}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </div>

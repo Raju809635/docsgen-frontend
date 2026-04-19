@@ -25,6 +25,14 @@ export async function generateDocs(text, pageCount) {
   return res.data;
 }
 
+export async function previewPages(text, pageCount) {
+  const res = await axios.post(`${API_URL}/preview-pages`, {
+    text,
+    page_count: pageCount,
+  });
+  return res.data;
+}
+
 export async function renderGraphviz(dot) {
   const res = await axios.post(`${API_URL}/render-graphviz`, { dot });
   return res.data;
