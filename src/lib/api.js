@@ -17,8 +17,11 @@ function resolveApiUrl() {
 
 const API_URL = resolveApiUrl();
 
-export async function generateDocs(text) {
-  const res = await axios.post(`${API_URL}/generate-docs`, { text });
+export async function generateDocs(text, pageCount) {
+  const res = await axios.post(`${API_URL}/generate-docs`, {
+    text,
+    page_count: pageCount,
+  });
   return res.data;
 }
 

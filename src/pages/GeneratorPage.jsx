@@ -46,6 +46,7 @@ function TitleBlock() {
 
 export default function GeneratorPage() {
   const [text, setText] = useState(STARTER);
+  const [pageCount, setPageCount] = useState(5);
   const [doc, setDoc] = useState(null);
   const [diagramSvg, setDiagramSvg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -75,7 +76,7 @@ export default function GeneratorPage() {
     setDiagramSvg("");
     setGraphvizSvgMap({});
     try {
-      const data = await generateDocs(text);
+      const data = await generateDocs(text, pageCount);
       setDoc(data);
       const graphvizEntries = (data?.diagrams || [])
         .map((diagram, index) => ({ diagram, index }))
@@ -142,6 +143,30 @@ export default function GeneratorPage() {
                 className="h-[360px] w-full resize-none rounded-2xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm leading-relaxed text-slate-100 outline-none focus:border-sky-400/60 focus:ring-2 focus:ring-sky-500/10"
                 placeholder="Paste anything..."
               />
+              <div className="mt-4 flex flex-wrap items-end gap-4">
+                <label className="block">
+                  <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                    Target pages
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={pageCount}
+                    onChange={(e) => {
+                      const nextValue = Number.parseInt(e.target.value || "1", 10);
+                      const safeValue = Number.isNaN(nextValue)
+                        ? 1
+                        : Math.min(50, Math.max(1, nextValue));
+                      setPageCount(safeValue);
+                    }}
+                    className="w-32 rounded-xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-sky-400/60 focus:ring-2 focus:ring-sky-500/10"
+                  />
+                </label>
+                <div className="pb-3 text-xs text-slate-400">
+                  Choose any value from 1 to 50 pages.
+                </div>
+              </div>
               <div className="mt-4 flex items-center gap-3">
                 <Button onClick={onGenerate} disabled={!canGenerate}>
                   {loading ? "Generating..." : "Generate Docs"}
@@ -154,6 +179,7 @@ export default function GeneratorPage() {
                     setDoc(null);
                     setDiagramSvg("");
                     setGraphvizSvgMap({});
+                    setPageCount(5);
                   }}
                   disabled={loading}
                 >
@@ -236,6 +262,9 @@ export default function GeneratorPage() {
                       <section className="p-5">
                         <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
                           Export Pages
+                        </div>
+                        <div className="mt-2 text-sm text-slate-400">
+                          Requested page count: {pageCount}
                         </div>
                         <div className="mt-4 space-y-5">
                           {doc.pages.map((page, index) => (
