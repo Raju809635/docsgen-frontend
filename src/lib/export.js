@@ -14,7 +14,7 @@ export async function exportPdf({ element, title }) {
     margin: [12, 12, 12, 12],
     filename,
     image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#020617" },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
     pagebreak: { mode: ["css", "legacy", "avoid-all"] },
   };
@@ -84,19 +84,25 @@ export function exportHtml({ doc, diagramSvg, graphvizSvgMap }) {
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>${esc(doc?.title || "Documentation")}</title>
   <style>
-    :root{color-scheme:dark}
-    body{margin:0;background:#020617;color:#e2e8f0;font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial}
-    .wrap{max-width:980px;margin:0 auto;padding:28px}
-    .card{background:rgba(2,6,23,.6);border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:18px 18px 16px;margin:14px 0}
-    h1{font-size:28px;margin:0 0 8px}
-    h2{font-size:16px;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:0 0 10px}
-    .p{white-space:pre-wrap;line-height:1.55}
-    .svg{background:rgba(15,23,42,.55);border:1px solid rgba(56,189,248,.22);border-radius:14px;padding:12px;overflow:auto}
+    :root{color-scheme:light}
+    *{box-sizing:border-box}
+    body{margin:0;background:#f8fafc;color:#0f172a;font-family:Georgia,"Times New Roman",serif}
+    .wrap{max-width:980px;margin:0 auto;padding:32px}
+    .card{background:#ffffff;border:1px solid #cbd5e1;border-radius:16px;padding:22px 22px 18px;margin:16px 0;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+    h1{font-size:30px;line-height:1.2;margin:0 0 10px;color:#0f172a}
+    h2{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#475569;margin:0 0 12px;font-family:Arial,Helvetica,sans-serif}
+    .p{white-space:pre-wrap;line-height:1.7;color:#1e293b;font-size:16px}
+    .svg{background:#f8fafc;border:1px solid #cbd5e1;border-radius:14px;padding:12px;overflow:auto}
     .doc-page{page-break-after:always;padding-bottom:10px}
     .doc-page:last-child{page-break-after:auto}
-    .page-title{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#7dd3fc;margin:18px 0 4px}
+    .page-title{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#2563eb;margin:18px 0 4px;font-family:Arial,Helvetica,sans-serif}
     .page-block{break-inside:avoid;page-break-inside:avoid}
-    pre{white-space:pre-wrap;overflow:auto}
+    pre{white-space:pre-wrap;overflow:auto;color:#0f172a;background:#f8fafc;padding:12px;border-radius:10px;border:1px solid #e2e8f0}
+    @media print{
+      body{background:#ffffff}
+      .wrap{padding:0}
+      .card{box-shadow:none}
+    }
   </style>
 </head>
 <body>
