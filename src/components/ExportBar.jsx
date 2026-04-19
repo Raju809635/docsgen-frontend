@@ -6,9 +6,7 @@ export default function ExportBar({ doc, diagramSvg, exportTargetRef, graphvizSv
     <div className="flex flex-wrap gap-3">
       <Button
         onClick={async () => {
-          const el = exportTargetRef?.current;
-          if (!el) return;
-          await exportPdf({ element: el, title: doc?.title });
+          await exportPdf({ doc, title: doc?.title, diagramSvg, graphvizSvgMap });
         }}
         disabled={!doc}
       >
