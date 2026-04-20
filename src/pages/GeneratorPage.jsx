@@ -617,14 +617,14 @@ export default function GeneratorPage() {
                   onClick={onGenerateVideo}
                   disabled={!canGenerateVideo}
                 >
-                  {videoLoading ? "Generating Preview..." : "Generate Preview Here"}
+                  {videoLoading ? "Generating Preview..." : "Generate Quick Preview"}
                 </Button>
                 <Button
                   className="bg-indigo-500/15 border-indigo-400/30 hover:bg-indigo-500/20 hover:border-indigo-300/40 text-indigo-50"
                   onClick={onSubmitVideoJob}
                   disabled={!canSubmitVideoJob}
                 >
-                  {videoJobLoading ? "Queueing..." : "Send To Colab Queue"}
+                  {videoJobLoading ? "Queueing..." : "Generate Final In Colab"}
                 </Button>
               </div>
             </div>
@@ -698,10 +698,10 @@ export default function GeneratorPage() {
                   </label>
                 </div>
                 <div className="rounded-2xl border border-cyan-400/20 bg-slate-950/20 p-4 text-sm text-slate-300">
-                  Pipeline: Story - Scenes - Image prompts - Scene images - Stitched MP4 preview
+                  Quick preview pipeline: Story - Scenes - Image prompts - Scene images - Stitched MP4 preview
                 </div>
                 <div className="rounded-2xl border border-indigo-400/20 bg-slate-950/20 p-4 text-sm text-slate-300">
-                  Colab Queue: app submits a job, your Colab notebook fetches pending jobs, generates the final Drive video, and posts the video URL back here.
+                  Final automation pipeline: app submits a job, your Colab notebook generates real scene clips, stitches them, and posts the final video back here.
                 </div>
                 {videoError ? (
                   <div className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
