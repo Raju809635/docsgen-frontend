@@ -20,7 +20,7 @@ function getNonEmptyPages(doc) {
   );
 }
 
-function buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap) {
+function buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap, generatedImages) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -37,6 +37,10 @@ function buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap) {
     h2{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#475569;margin:0 0 12px;font-family:Arial,Helvetica,sans-serif}
     .p{white-space:pre-wrap;line-height:1.7;color:#1e293b;font-size:16px}
     .svg{background:#f8fafc;border:1px solid #cbd5e1;border-radius:14px;padding:12px;overflow:auto}
+    .image-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+    .image-card{background:#ffffff;border:1px solid #cbd5e1;border-radius:16px;padding:16px;break-inside:avoid;page-break-inside:avoid}
+    .image-preview{width:100%;border-radius:14px;border:1px solid #cbd5e1;background:#f8fafc;display:block}
+    .meta{font-size:12px;line-height:1.6;color:#475569;font-family:Arial,Helvetica,sans-serif}
     .doc-page{page-break-after:always;padding-bottom:10px}
     .doc-page:last-child{page-break-after:auto}
     .page-title{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#2563eb;margin:18px 0 4px;font-family:Arial,Helvetica,sans-serif}
@@ -60,6 +64,7 @@ function buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap) {
       <div class="p">${esc(doc?.workflow)}</div>
     </div>
     ${renderDiagrams(doc, mermaidSvgMap, graphvizSvgMap)}
+    ${renderImages(generatedImages)}
     ${renderSections(doc)}
     ${renderPages(doc)}
   </div>
@@ -67,8 +72,8 @@ function buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap) {
 </html>`;
 }
 
-function buildPdfContainer(doc, mermaidSvgMap, graphvizSvgMap) {
-  const markup = buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap);
+function buildPdfContainer(doc, mermaidSvgMap, graphvizSvgMap, generatedImages) {
+  const markup = buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap, generatedImages);
   const parser = new DOMParser();
   const parsed = parser.parseFromString(markup, "text/html");
   const container = document.createElement("div");
@@ -88,7 +93,7 @@ function buildPdfContainer(doc, mermaidSvgMap, graphvizSvgMap) {
   return container;
 }
 
-export async function exportPdf({ doc, title, mermaidSvgMap, graphvizSvgMap }) {
+export async function exportPdf({ doc, title, mermaidSvgMap, graphvizSvgMap, generatedImages }) {
   const filename = `${safeFilename(title)}.pdf`;
   const opt = {
     margin: [12, 12, 12, 12],
@@ -98,7 +103,7 @@ export async function exportPdf({ doc, title, mermaidSvgMap, graphvizSvgMap }) {
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
     pagebreak: { mode: ["css", "legacy", "avoid-all"] },
   };
-  const container = buildPdfContainer(doc, mermaidSvgMap, graphvizSvgMap);
+  const container = buildPdfContainer(doc, mermaidSvgMap, graphvizSvgMap, generatedImages);
   document.body.appendChild(container);
   try {
     await html2pdf().set(opt).from(container).save();
@@ -156,6 +161,29 @@ function renderDiagrams(doc, mermaidSvgMap, graphvizSvgMap) {
     .join("");
 }
 
+function renderImages(generatedImages) {
+  if (!generatedImages?.length) {
+    return "";
+  }
+
+  return `
+    <div class="card page-block">
+      <h2>Generated Images</h2>
+      <div class="image-grid">
+        ${generatedImages
+          .map(
+            (image, index) => `
+          <div class="image-card">
+            <img class="image-preview" src="${escAttr(image.image_data_url)}" alt="${escAttr(image.prompt || `generated-image-${index + 1}`)}" />
+            <div class="p" style="margin-top:12px">${esc(image.prompt)}</div>
+            <div class="meta" style="margin-top:8px">Model: ${esc(image.model)} - Format: ${esc(image.mime_type)}</div>
+          </div>`,
+          )
+          .join("")}
+      </div>
+    </div>`;
+}
+
 function esc(s) {
   return String(s || "")
     .replaceAll("&", "&amp;")
@@ -163,9 +191,13 @@ function esc(s) {
     .replaceAll(">", "&gt;");
 }
 
-export function exportHtml({ doc, mermaidSvgMap, graphvizSvgMap }) {
+function escAttr(s) {
+  return esc(s).replaceAll('"', "&quot;");
+}
+
+export function exportHtml({ doc, mermaidSvgMap, graphvizSvgMap, generatedImages }) {
   const filename = `${safeFilename(doc?.title)}.html`;
-  const html = buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap);
+  const html = buildExportDocument(doc, mermaidSvgMap, graphvizSvgMap, generatedImages);
 
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);

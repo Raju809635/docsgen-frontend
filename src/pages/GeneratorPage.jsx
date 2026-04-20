@@ -1,10 +1,18 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card.jsx";
 import Button from "../components/Button.jsx";
 import DocSection from "../components/DocSection.jsx";
 import DiagramGallery from "../components/DiagramGallery.jsx";
 import ExportBar from "../components/ExportBar.jsx";
-import { generateDocs, previewPages, renderGraphviz } from "../lib/api.js";
+import {
+  generateDocs,
+  generateImage,
+  generateVideo,
+  getVideoJob,
+  previewPages,
+  renderGraphviz,
+  submitVideoJob,
+} from "../lib/api.js";
 import DOMPurify from "dompurify";
 
 const STARTER = `# Example Input
@@ -77,7 +85,30 @@ export default function GeneratorPage() {
   const [mermaidSvgMap, setMermaidSvgMap] = useState({});
   const [loading, setLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
   const [error, setError] = useState("");
+  const [imageError, setImageError] = useState("");
+  const [imagePrompt, setImagePrompt] = useState(
+    "Create a clean modern illustration of the system architecture for this documentation topic.",
+  );
+  const [negativePrompt, setNegativePrompt] = useState(
+    "blurry, distorted, watermark, low quality, cropped text",
+  );
+  const [imageWidth, setImageWidth] = useState(1024);
+  const [imageHeight, setImageHeight] = useState(768);
+  const [generatedImages, setGeneratedImages] = useState([]);
+  const [videoStory, setVideoStory] = useState(
+    "A futuristic city at night with flying cars. A hero walks through neon streets. Suddenly a robot attacks. A high-speed chase begins. The hero outsmarts the robot and restores calm to the city.",
+  );
+  const [videoSceneCount, setVideoSceneCount] = useState(4);
+  const [videoClipDuration, setVideoClipDuration] = useState(3);
+  const [videoWidth, setVideoWidth] = useState(768);
+  const [videoHeight, setVideoHeight] = useState(432);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoJobLoading, setVideoJobLoading] = useState(false);
+  const [videoError, setVideoError] = useState("");
+  const [videoResult, setVideoResult] = useState(null);
+  const [videoJob, setVideoJob] = useState(null);
 
   const [dot, setDot] = useState(
     `digraph G {
@@ -101,6 +132,39 @@ export default function GeneratorPage() {
     () => text.trim().length > 0 && !previewLoading,
     [text, previewLoading],
   );
+  const canGenerateImage = useMemo(
+    () => imagePrompt.trim().length > 0 && !imageLoading,
+    [imagePrompt, imageLoading],
+  );
+  const canGenerateVideo = useMemo(
+    () => videoStory.trim().length > 0 && !videoLoading,
+    [videoStory, videoLoading],
+  );
+  const canSubmitVideoJob = useMemo(
+    () => videoStory.trim().length > 0 && !videoJobLoading,
+    [videoStory, videoJobLoading],
+  );
+
+  useEffect(() => {
+    if (!videoJob?.job_id) {
+      return undefined;
+    }
+
+    if (!["pending", "processing"].includes(videoJob.status)) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(async () => {
+      try {
+        const freshJob = await getVideoJob(videoJob.job_id);
+        setVideoJob(freshJob);
+      } catch {
+        return;
+      }
+    }, 15000);
+
+    return () => window.clearInterval(timer);
+  }, [videoJob]);
 
   function handleMermaidSvg(index, svg) {
     setMermaidSvgMap((current) => ({
@@ -161,6 +225,97 @@ export default function GeneratorPage() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onGenerateImage() {
+    setImageLoading(true);
+    setImageError("");
+
+    try {
+      const data = await generateImage({
+        prompt: imagePrompt,
+        negativePrompt,
+        width: imageWidth,
+        height: imageHeight,
+      });
+      setGeneratedImages((current) => [data, ...current].slice(0, 6));
+    } catch (e) {
+      setImageError(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Image generation failed. Check the backend Hugging Face configuration.",
+      );
+    } finally {
+      setImageLoading(false);
+    }
+  }
+
+  async function onGenerateVideo() {
+    setVideoLoading(true);
+    setVideoError("");
+
+    try {
+      const data = await generateVideo({
+        story: videoStory,
+        sceneCount: videoSceneCount,
+        clipDurationSeconds: videoClipDuration,
+        width: videoWidth,
+        height: videoHeight,
+      });
+      setVideoResult(data);
+    } catch (e) {
+      setVideoError(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Video generation failed. Check the backend configuration and Hugging Face access.",
+      );
+    } finally {
+      setVideoLoading(false);
+    }
+  }
+
+  async function onSubmitVideoJob() {
+    setVideoJobLoading(true);
+    setVideoError("");
+
+    try {
+      const data = await submitVideoJob({
+        story: videoStory,
+        sceneCount: videoSceneCount,
+        clipDurationSeconds: videoClipDuration,
+        width: videoWidth,
+        height: videoHeight,
+      });
+      setVideoJob(data);
+    } catch (e) {
+      setVideoError(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Could not queue the Colab video job.",
+      );
+    } finally {
+      setVideoJobLoading(false);
+    }
+  }
+
+  async function onRefreshVideoJob() {
+    if (!videoJob?.job_id) {
+      return;
+    }
+
+    setVideoJobLoading(true);
+    try {
+      const data = await getVideoJob(videoJob.job_id);
+      setVideoJob(data);
+    } catch (e) {
+      setVideoError(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Could not refresh the queued video job.",
+      );
+    } finally {
+      setVideoJobLoading(false);
     }
   }
 
@@ -244,6 +399,11 @@ export default function GeneratorPage() {
                     setDoc(null);
                     setMermaidSvgMap({});
                     setGraphvizSvgMap({});
+                    setGeneratedImages([]);
+                    setImageError("");
+                    setVideoResult(null);
+                    setVideoJob(null);
+                    setVideoError("");
                     setPageCount(5);
                   }}
                   disabled={loading}
@@ -304,6 +464,7 @@ export default function GeneratorPage() {
                 doc={doc}
                 mermaidSvgMap={mermaidSvgMap}
                 graphvizSvgMap={graphvizSvgMap}
+                generatedImages={generatedImages}
               />
             </div>
 
@@ -329,6 +490,48 @@ export default function GeneratorPage() {
                     onMermaidSvg={handleMermaidSvg}
                     graphvizSvgMap={graphvizSvgMap}
                   />
+                  {!!generatedImages.length && (
+                    <>
+                      <div className="border-t border-slate-700/40" />
+                      <section className="p-5">
+                        <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                          Generated Images
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 gap-4">
+                          {generatedImages.map((image, index) => (
+                            <div
+                              key={`${image.prompt}-${index}`}
+                              className="rounded-2xl border border-amber-400/20 bg-slate-950/20 p-4"
+                            >
+                              <img
+                                src={image.image_data_url}
+                                alt={image.prompt}
+                                className="w-full rounded-2xl border border-slate-700/40 bg-slate-950/40 object-cover"
+                              />
+                              <div className="mt-3 text-sm font-medium text-slate-100">
+                                Prompt
+                              </div>
+                              <div className="mt-1 text-sm leading-relaxed text-slate-300">
+                                {image.prompt}
+                              </div>
+                              <div className="mt-2 text-xs text-slate-400">
+                                {image.model} - {image.mime_type}
+                              </div>
+                              <div className="mt-3">
+                                <a
+                                  href={image.image_data_url}
+                                  download={`generated-image-${index + 1}.png`}
+                                  className="inline-flex rounded-xl border border-amber-400/30 bg-amber-500/15 px-3 py-2 text-sm text-amber-50 transition hover:bg-amber-500/20 hover:border-amber-300/40"
+                                >
+                                  Download Image
+                                </a>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    </>
+                  )}
                   <div className="border-t border-slate-700/40" />
                   <DocSection label="Technical Breakdown" value={doc.technical} />
                   <div className="border-t border-slate-700/40" />
@@ -400,6 +603,355 @@ export default function GeneratorPage() {
                   )}
                 </div>
               )}
+            </div>
+          </Card>
+        </div>
+
+        <div className="mt-6">
+          <Card className="overflow-hidden">
+            <div className="border-b border-slate-700/40 px-5 py-4 flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold">AI Video Generator</div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  className="bg-cyan-500/15 border-cyan-400/30 hover:bg-cyan-500/20 hover:border-cyan-300/40 text-cyan-50"
+                  onClick={onGenerateVideo}
+                  disabled={!canGenerateVideo}
+                >
+                  {videoLoading ? "Generating Preview..." : "Generate Preview Here"}
+                </Button>
+                <Button
+                  className="bg-indigo-500/15 border-indigo-400/30 hover:bg-indigo-500/20 hover:border-indigo-300/40 text-indigo-50"
+                  onClick={onSubmitVideoJob}
+                  disabled={!canSubmitVideoJob}
+                >
+                  {videoJobLoading ? "Queueing..." : "Send To Colab Queue"}
+                </Button>
+              </div>
+            </div>
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] gap-5">
+              <div className="space-y-4">
+                <div>
+                  <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                    Story
+                  </div>
+                  <textarea
+                    value={videoStory}
+                    onChange={(e) => setVideoStory(e.target.value)}
+                    className="h-40 w-full resize-none rounded-2xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm leading-relaxed text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/10"
+                    placeholder="Write the story or explainer script for the video..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <label className="block">
+                    <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                      Scenes
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max="8"
+                      value={videoSceneCount}
+                      onChange={(e) => setVideoSceneCount(Number.parseInt(e.target.value || "4", 10) || 4)}
+                      className="w-full rounded-xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/10"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                      Seconds
+                    </div>
+                    <input
+                      type="number"
+                      min="1"
+                      max="8"
+                      value={videoClipDuration}
+                      onChange={(e) => setVideoClipDuration(Number.parseInt(e.target.value || "3", 10) || 3)}
+                      className="w-full rounded-xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/10"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                      Width
+                    </div>
+                    <input
+                      type="number"
+                      min="320"
+                      max="1280"
+                      step="64"
+                      value={videoWidth}
+                      onChange={(e) => setVideoWidth(Number.parseInt(e.target.value || "768", 10) || 768)}
+                      className="w-full rounded-xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/10"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                      Height
+                    </div>
+                    <input
+                      type="number"
+                      min="240"
+                      max="1280"
+                      step="64"
+                      value={videoHeight}
+                      onChange={(e) => setVideoHeight(Number.parseInt(e.target.value || "432", 10) || 432)}
+                      className="w-full rounded-xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/10"
+                    />
+                  </label>
+                </div>
+                <div className="rounded-2xl border border-cyan-400/20 bg-slate-950/20 p-4 text-sm text-slate-300">
+                  Pipeline: Story - Scenes - Image prompts - Scene images - Stitched MP4 preview
+                </div>
+                <div className="rounded-2xl border border-indigo-400/20 bg-slate-950/20 p-4 text-sm text-slate-300">
+                  Colab Queue: app submits a job, your Colab notebook fetches pending jobs, generates the final Drive video, and posts the video URL back here.
+                </div>
+                {videoError ? (
+                  <div className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                    {videoError}
+                  </div>
+                ) : null}
+              </div>
+              <div className="rounded-2xl border border-cyan-400/20 bg-slate-900/30 p-4">
+                <div className="text-xs uppercase tracking-[0.22em] text-cyan-200">
+                  Video Output
+                </div>
+                {videoResult ? (
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-100">
+                        {videoResult.title}
+                      </div>
+                      <div className="mt-1 text-sm leading-relaxed text-slate-300">
+                        {videoResult.summary}
+                      </div>
+                    </div>
+                    <video
+                      controls
+                      src={videoResult.video_data_url}
+                      className="w-full rounded-2xl border border-slate-700/40 bg-slate-950/40"
+                    />
+                    <a
+                      href={videoResult.video_data_url}
+                      download="generated-video.mp4"
+                      className="inline-flex rounded-xl border border-cyan-400/30 bg-cyan-500/15 px-3 py-2 text-sm text-cyan-50 transition hover:bg-cyan-500/20 hover:border-cyan-300/40"
+                    >
+                      Download Video
+                    </a>
+                  </div>
+                ) : (
+                  <div className="mt-4 text-sm text-slate-400">
+                    Your stitched preview video will appear here with downloadable MP4 output.
+                  </div>
+                )}
+
+                {videoJob ? (
+                  <div className="mt-5 rounded-2xl border border-indigo-400/20 bg-slate-950/20 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs uppercase tracking-[0.22em] text-indigo-200">
+                          Colab Job
+                        </div>
+                        <div className="mt-2 text-sm text-slate-300">
+                          Job ID: <span className="text-slate-100">{videoJob.job_id}</span>
+                        </div>
+                        <div className="mt-1 text-sm text-slate-300">
+                          Status: <span className="text-indigo-200">{videoJob.status}</span>
+                        </div>
+                      </div>
+                      <Button
+                        className="bg-slate-800/40 border-slate-600/40 hover:bg-slate-800/55 hover:border-slate-500/45 text-slate-100"
+                        onClick={onRefreshVideoJob}
+                        disabled={videoJobLoading}
+                      >
+                        {videoJobLoading ? "Refreshing..." : "Refresh Job"}
+                      </Button>
+                    </div>
+
+                    {videoJob.summary ? (
+                      <div className="mt-3 text-sm leading-relaxed text-slate-300">
+                        {videoJob.summary}
+                      </div>
+                    ) : null}
+
+                    {videoJob.error ? (
+                      <div className="mt-3 rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                        {videoJob.error}
+                      </div>
+                    ) : null}
+
+                    {videoJob.video_url ? (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <a
+                          href={videoJob.video_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex rounded-xl border border-indigo-400/30 bg-indigo-500/15 px-3 py-2 text-sm text-indigo-50 transition hover:bg-indigo-500/20 hover:border-indigo-300/40"
+                        >
+                          Open Final Video
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="mt-4 text-sm text-slate-400">
+                        Waiting for Colab to process this job and post back the final video URL.
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            {videoResult ? (
+              <div className="border-t border-slate-700/40 p-5">
+                <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                  Scene Breakdown
+                </div>
+                <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {videoResult.scenes.map((scene) => (
+                    <div
+                      key={`${scene.scene_number}-${scene.title}`}
+                      className="rounded-2xl border border-cyan-400/20 bg-slate-950/20 p-4"
+                    >
+                      {scene.image_data_url ? (
+                        <img
+                          src={scene.image_data_url}
+                          alt={scene.title}
+                          className="w-full rounded-2xl border border-slate-700/40 bg-slate-950/40 object-cover"
+                        />
+                      ) : null}
+                      <div className="mt-3 text-sm font-semibold text-cyan-200">
+                        Scene {scene.scene_number}: {scene.title}
+                      </div>
+                      <div className="mt-2 text-sm leading-relaxed text-slate-300">
+                        {scene.narration}
+                      </div>
+                      <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-950/40 p-3 text-xs leading-relaxed text-slate-400">
+                        <span className="text-slate-200">Image prompt:</span> {scene.image_prompt}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {!!videoResult.captions?.length && (
+                  <div className="mt-5 rounded-2xl border border-slate-700/40 bg-slate-950/20 p-4">
+                    <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                      Captions
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {videoResult.captions.map((caption, index) => (
+                        <div
+                          key={`caption-${index + 1}`}
+                          className="rounded-xl border border-slate-700/30 bg-slate-950/40 px-3 py-2 text-sm text-slate-300"
+                        >
+                          {index + 1}. {caption}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+            <div className="border-t border-slate-700/40 p-5">
+              <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                Colab Worker Steps
+              </div>
+              <div className="mt-3 space-y-2 text-sm leading-relaxed text-slate-300">
+                <div>1. In Colab, call <code>GET /video-jobs/pending</code> with your worker token.</div>
+                <div>2. Pick a pending job, generate the Drive video, then call <code>POST /video-jobs/&lt;job_id&gt;/update</code>.</div>
+                <div>3. Set status to <code>processing</code>, then <code>completed</code> with the final public <code>video_url</code>.</div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="mt-6">
+          <Card className="overflow-hidden">
+            <div className="border-b border-slate-700/40 px-5 py-4 flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold">AI Image Generator</div>
+              <Button
+                className="bg-amber-500/15 border-amber-400/30 hover:bg-amber-500/20 hover:border-amber-300/40 text-amber-50"
+                onClick={onGenerateImage}
+                disabled={!canGenerateImage}
+              >
+                {imageLoading ? "Generating Image..." : "Generate Image"}
+              </Button>
+            </div>
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-[1.2fr_.8fr] gap-5">
+              <div className="space-y-4">
+                <div>
+                  <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                    Prompt
+                  </div>
+                  <textarea
+                    value={imagePrompt}
+                    onChange={(e) => setImagePrompt(e.target.value)}
+                    className="h-36 w-full resize-none rounded-2xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm leading-relaxed text-slate-100 outline-none focus:border-amber-400/60 focus:ring-2 focus:ring-amber-500/10"
+                    placeholder="Describe the image you want..."
+                  />
+                </div>
+                <div>
+                  <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                    Negative Prompt
+                  </div>
+                  <textarea
+                    value={negativePrompt}
+                    onChange={(e) => setNegativePrompt(e.target.value)}
+                    className="h-24 w-full resize-none rounded-2xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm leading-relaxed text-slate-100 outline-none focus:border-amber-400/60 focus:ring-2 focus:ring-amber-500/10"
+                    placeholder="Things to avoid..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="block">
+                    <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                      Width
+                    </div>
+                    <input
+                      type="number"
+                      min="256"
+                      max="1536"
+                      step="64"
+                      value={imageWidth}
+                      onChange={(e) => setImageWidth(Number.parseInt(e.target.value || "1024", 10) || 1024)}
+                      className="w-full rounded-xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-amber-400/60 focus:ring-2 focus:ring-amber-500/10"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="mb-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                      Height
+                    </div>
+                    <input
+                      type="number"
+                      min="256"
+                      max="1536"
+                      step="64"
+                      value={imageHeight}
+                      onChange={(e) => setImageHeight(Number.parseInt(e.target.value || "768", 10) || 768)}
+                      className="w-full rounded-xl border border-slate-700/50 bg-slate-950/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-amber-400/60 focus:ring-2 focus:ring-amber-500/10"
+                    />
+                  </label>
+                </div>
+                {imageError ? (
+                  <div className="rounded-xl border border-rose-400/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+                    {imageError}
+                  </div>
+                ) : null}
+              </div>
+              <div className="rounded-2xl border border-amber-400/20 bg-slate-900/30 p-4">
+                <div className="text-xs uppercase tracking-[0.22em] text-amber-200">
+                  Latest Image
+                </div>
+                {generatedImages[0] ? (
+                  <div className="mt-4 space-y-3">
+                    <img
+                      src={generatedImages[0].image_data_url}
+                      alt={generatedImages[0].prompt}
+                      className="w-full rounded-2xl border border-slate-700/40 bg-slate-950/40 object-cover"
+                    />
+                    <div className="text-sm leading-relaxed text-slate-300">
+                      {generatedImages[0].prompt}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 text-sm text-slate-400">
+                    Generated images will appear here and will also be included in exported PDF/HTML files.
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
         </div>
