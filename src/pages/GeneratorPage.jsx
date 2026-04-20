@@ -83,6 +83,10 @@ function getDownloadableVideoUrl(url) {
   return value;
 }
 
+function looksLikeDriveUrl(url) {
+  return String(url || "").includes("drive.google.com");
+}
+
 function TitleBlock() {
   return (
     <div className="flex items-start justify-between gap-6">
@@ -162,6 +166,7 @@ export default function GeneratorPage() {
   const visibleSections = getNarrativeSections(doc);
   const finalVideoEmbedUrl = getEmbeddableVideoUrl(videoJob?.video_url);
   const finalVideoDownloadUrl = getDownloadableVideoUrl(videoJob?.video_url);
+  const finalVideoUsesDrive = looksLikeDriveUrl(videoJob?.video_url);
 
   const canGenerate = useMemo(() => text.trim().length > 0 && !loading, [text, loading]);
   const canPreview = useMemo(
@@ -815,22 +820,19 @@ export default function GeneratorPage() {
 
                     {videoJob.video_url ? (
                       <div className="mt-4 space-y-4">
-                        <div className="rounded-2xl border border-slate-700/40 bg-slate-950/40 p-2">
-                          {finalVideoEmbedUrl.includes("drive.google.com/file/d/") ? (
-                            <iframe
-                              src={finalVideoEmbedUrl}
-                              title="Final Colab video"
-                              allow="autoplay"
-                              className="h-[360px] w-full rounded-xl border-0 bg-slate-950"
-                            />
-                          ) : (
+                        {!finalVideoUsesDrive ? (
+                          <div className="rounded-2xl border border-slate-700/40 bg-slate-950/40 p-2">
                             <video
                               controls
                               src={finalVideoEmbedUrl}
                               className="w-full rounded-xl border border-slate-700/40 bg-slate-950/40"
                             />
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-50">
+                            Google Drive preview can be inconsistent for audio/captions. Use the actions below and the caption list here as the source of truth.
+                          </div>
+                        )}
                         <div className="flex flex-wrap gap-3">
                           <a
                             href={videoJob.video_url}
@@ -847,7 +849,57 @@ export default function GeneratorPage() {
                           >
                             Download To Device
                           </a>
+                          {finalVideoUsesDrive ? (
+                            <a
+                              href={finalVideoEmbedUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex rounded-xl border border-slate-600/40 bg-slate-800/40 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-800/55 hover:border-slate-500/45"
+                            >
+                              Open Drive Preview
+                            </a>
+                          ) : null}
                         </div>
+                        {!!videoJob.captions?.length && (
+                          <div className="rounded-2xl border border-slate-700/40 bg-slate-950/20 p-4">
+                            <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
+                              Final Captions
+                            </div>
+                            <div className="mt-3 space-y-2">
+                              {videoJob.captions.map((caption, index) => (
+                                <div
+                                  key={`final-caption-${index + 1}`}
+                                  className="rounded-xl border border-slate-700/30 bg-slate-950/40 px-3 py-2 text-sm text-slate-300"
+                                >
+                                  {index + 1}. {caption}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {finalVideoUsesDrive ? (
+                          <details className="rounded-2xl border border-slate-700/40 bg-slate-950/20 p-4">
+                            <summary className="cursor-pointer text-sm font-medium text-slate-100">
+                              Show embedded Drive preview
+                            </summary>
+                            <div className="mt-4 rounded-2xl border border-slate-700/40 bg-slate-950/40 p-2">
+                              {finalVideoEmbedUrl.includes("drive.google.com/file/d/") ? (
+                                <iframe
+                                  src={finalVideoEmbedUrl}
+                                  title="Final Colab video"
+                                  allow="autoplay"
+                                  className="h-[360px] w-full rounded-xl border-0 bg-slate-950"
+                                />
+                              ) : (
+                                <video
+                                  controls
+                                  src={finalVideoEmbedUrl}
+                                  className="w-full rounded-xl border border-slate-700/40 bg-slate-950/40"
+                                />
+                              )}
+                            </div>
+                          </details>
+                        ) : null}
                       </div>
                     ) : (
                       <div className="mt-4 text-sm text-slate-400">
