@@ -49,6 +49,40 @@ function getNarrativeSections(doc) {
   return (doc?.sections || []).filter((section) => !isDiagramLikeSection(section));
 }
 
+function getDriveFileId(url) {
+  const value = String(url || "");
+  const match = value.match(/\/file\/d\/([^/]+)/) || value.match(/[?&]id=([^&]+)/);
+  return match?.[1] || "";
+}
+
+function getEmbeddableVideoUrl(url) {
+  const value = String(url || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  const driveFileId = getDriveFileId(value);
+  if (driveFileId) {
+    return `https://drive.google.com/file/d/${driveFileId}/preview`;
+  }
+
+  return value;
+}
+
+function getDownloadableVideoUrl(url) {
+  const value = String(url || "").trim();
+  if (!value) {
+    return "";
+  }
+
+  const driveFileId = getDriveFileId(value);
+  if (driveFileId) {
+    return `https://drive.google.com/uc?export=download&id=${driveFileId}`;
+  }
+
+  return value;
+}
+
 function TitleBlock() {
   return (
     <div className="flex items-start justify-between gap-6">
@@ -126,6 +160,8 @@ export default function GeneratorPage() {
   const exportRef = useRef(null);
   const visiblePages = getNonEmptyPages(doc);
   const visibleSections = getNarrativeSections(doc);
+  const finalVideoEmbedUrl = getEmbeddableVideoUrl(videoJob?.video_url);
+  const finalVideoDownloadUrl = getDownloadableVideoUrl(videoJob?.video_url);
 
   const canGenerate = useMemo(() => text.trim().length > 0 && !loading, [text, loading]);
   const canPreview = useMemo(
@@ -778,15 +814,40 @@ export default function GeneratorPage() {
                     ) : null}
 
                     {videoJob.video_url ? (
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        <a
-                          href={videoJob.video_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex rounded-xl border border-indigo-400/30 bg-indigo-500/15 px-3 py-2 text-sm text-indigo-50 transition hover:bg-indigo-500/20 hover:border-indigo-300/40"
-                        >
-                          Open Final Video
-                        </a>
+                      <div className="mt-4 space-y-4">
+                        <div className="rounded-2xl border border-slate-700/40 bg-slate-950/40 p-2">
+                          {finalVideoEmbedUrl.includes("drive.google.com/file/d/") ? (
+                            <iframe
+                              src={finalVideoEmbedUrl}
+                              title="Final Colab video"
+                              allow="autoplay"
+                              className="h-[360px] w-full rounded-xl border-0 bg-slate-950"
+                            />
+                          ) : (
+                            <video
+                              controls
+                              src={finalVideoEmbedUrl}
+                              className="w-full rounded-xl border border-slate-700/40 bg-slate-950/40"
+                            />
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <a
+                            href={videoJob.video_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex rounded-xl border border-indigo-400/30 bg-indigo-500/15 px-3 py-2 text-sm text-indigo-50 transition hover:bg-indigo-500/20 hover:border-indigo-300/40"
+                          >
+                            Open Final Video
+                          </a>
+                          <a
+                            href={finalVideoDownloadUrl}
+                            download="final-colab-video.mp4"
+                            className="inline-flex rounded-xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-2 text-sm text-emerald-50 transition hover:bg-emerald-500/20 hover:border-emerald-300/40"
+                          >
+                            Download To Device
+                          </a>
+                        </div>
                       </div>
                     ) : (
                       <div className="mt-4 text-sm text-slate-400">
